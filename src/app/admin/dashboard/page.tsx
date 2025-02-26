@@ -33,24 +33,91 @@ export default function AdminDashboard() {
     fetchTurnos();
   }, []);
 
-  const fetchTurnos = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch('/api/admin/turnos');
+  // Improved fetchTurnos function with more robust error handling
+const fetchTurnos = async () => {
+  try {
+    setLoading(true);
+    setError(''); // Reset error state
+
+    // Add authentication headers if required
+    const headers = {
+      'Content-Type': 'application/json',
+      // Add any authentication token if needed
+      // 'Authorization': `Bearer ${yourAuthToken}`
+    };
+
+    const response = await fetch('/api/admin/turnos', { 
+      method: 'GET',
+      headers: headers
+    });
+    
+    // More detailed error handling
+    if (!response.ok) {
+      const errorBody = await response.text();
+      console.error('Full error response:', errorBody);
       
-      if (!response.ok) {
-        throw new Error('Error al cargar turnos');
+      switch (response.status) {
+        case 401:
+          setError('No autorizado. Por favor, inicie sesión nuevamente.');
+          break;
+        case 403:
+          setError('No tiene permisos para ver los turnos.');
+          break;
+        case 404:
+          setError('Endpoint de turnos no encontrado.');
+          break;
+        case 500:
+          setError('Error interno del servidor al cargar turnos.');
+          break;
+        default:
+          setError(`Error al cargar turnos. Código de estado: ${response.status}`);
       }
       
-      const data = await response.json();
-      setTurnos(data);
-    } catch (error) {
-      console.error('Error:', error);
-      setError('Error al cargar los turnos');
-    } finally {
-      setLoading(false);
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
-  };
+    
+    const data = await response.json();
+    
+    // Validate data structure
+    if (!Array.isArray(data)) {
+      setError('Formato de datos inválido');
+      throw new Error('Datos recibidos no son un array');
+    }
+
+    setTurnos(data);
+  } catch (error) {
+    console.error('Fetch turnos error:', error);
+    
+    // If error is a network error or fetch failed completely
+    if (error instanceof TypeError) {
+      setError('Error de red. Verifique su conexión.');
+    } else if (error.message) {
+      setError(error.message);
+    }
+  } finally {
+    setLoading(false);
+  }
+};
+
+// Debugging helper function
+const checkAPIEndpoint = async () => {
+  try {
+    const response = await fetch('/api/admin/turnos', { method: 'GET' });
+    console.log('API Response Status:', response.status);
+    console.log('API Response Headers:', Object.fromEntries(response.headers.entries()));
+    
+    const data = await response.json();
+    console.log('API Response Data:', data);
+  } catch (error) {
+    console.error('API Endpoint Check Error:', error);
+  }
+};
+
+// Possible debug call in useEffect or console
+useEffect(() => {
+  // checkAPIEndpoint(); // Uncomment to debug API endpoint
+  fetchTurnos();
+}, []);
 
   const handleLogout = async () => {
     try {
@@ -86,31 +153,36 @@ export default function AdminDashboard() {
     <div className="min-h-screen bg-gray-900">
       {/* Barra lateral */}
       <div className="flex h-screen">
-        <div className="w-64 bg-gray-800 text-white p-4">
-          <h1 className="text-2xl font-bold mb-8">Panel Admin</h1>
-          <nav className="space-y-2">
-            <a className="block py-2.5 px-4 rounded bg-blue-600 text-white">
-              Dashboard
-            </a>
-            <a className="block py-2.5 px-4 rounded hover:bg-gray-700 transition">
-              Barberos
-            </a>
-            <a className="block py-2.5 px-4 rounded hover:bg-gray-700 transition">
-              Servicios
-            </a>
-            <a className="block py-2.5 px-4 rounded hover:bg-gray-700 transition">
-              Clientes
-            </a>
-          </nav>
-          <div className="absolute bottom-4 left-4 right-4">
-            <button
-              onClick={handleLogout}
-              className="w-full py-2 px-4 bg-red-600 hover:bg-red-700 transition text-white rounded"
-            >
-              Cerrar Sesión
-            </button>
-          </div>
-        </div>
+      <div className="w-64 bg-gray-800 text-white p-4 flex flex-col h-full">
+  <h1 className="text-2xl font-bold mb-8">Panel Admin</h1>
+  <nav className="space-y-2 flex-grow">
+    <a href="/admin/dashboard" className="block py-2.5 px-4 rounded bg-blue-600 text-white">
+      Dashboard
+    </a>
+    <a href="/admin/barberos" className="block py-2.5 px-4 rounded hover:bg-gray-700 transition">
+      Barberos
+    </a>
+    <a href="/admin/servicios" className="block py-2.5 px-4 rounded hover:bg-gray-700 transition">
+      Servicios
+    </a>
+    <a href="/admin/clientes" className="block py-2.5 px-4 rounded hover:bg-gray-700 transition">
+      Clientes
+    </a>
+    <a href="/admin/sucursales" className="block py-2.5 px-4 rounded hover:bg-gray-700 transition">
+      Sucursales
+    </a>
+  </nav>
+  <button
+    onClick={handleLogout}
+    className="mt-auto py-2.5 px-4 bg-red-600 hover:bg-red-700 transition text-white rounded flex items-center justify-center"
+  >
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+      <path fillRule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 001 1h12a1 1 0 001-1V4a1 1 0 00-1-1H3zm9 4a1 1 0 10-2 0v4a1 1 0 102 0V7z" clipRule="evenodd" />
+      <path d="M12 15l5-5-5-5v10z" />
+    </svg>
+    Cerrar Sesión
+  </button>
+</div>
 
         {/* Contenido principal */}
         <div className="flex-1 p-8 overflow-auto">
