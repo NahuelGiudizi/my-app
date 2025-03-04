@@ -38,16 +38,58 @@ export async function PUT(
     const id = parseInt(params.id);
     const data = await request.json();
     
+    // Validate input
+    if (!data.nombre || !data.direccion || !data.telefono) {
+      return NextResponse.json(
+        { error: 'Datos incompletos' }, 
+        { status: 400 }
+      );
+    }
+    
+    // Prepare the data for update
+    const sucursalData = {
+      nombre: data.nombre,
+      direccion: data.direccion,
+      telefono: data.telefono,
+      horarioInicio: new Date(`2023-01-01T${data.horarioInicio}:00`),
+      horarioFin: new Date(`2023-01-01T${data.horarioFin}:00`),
+      diasAtencion: {
+        // Disconnect all existing days and reconnect new ones
+        set: data.diasAtencion.split(',').map((dia: string) => ({ 
+          nombre: dia.trim() 
+        }))
+      }
+    };
+    
+    // Ensure all referenced days exist
+    await Promise.all(
+      data.diasAtencion.split(',').map(async (dia: string) => {
+        await prisma.diaAtencion.upsert({
+          where: { nombre: dia.trim() },
+          update: {},
+          create: { nombre: dia.trim() }
+        })
+      })
+    );
+
+    // Perform the update
     const sucursal = await prisma.sucursal.update({
       where: { id },
-      data
+      data: sucursalData,
+      include: { diasAtencion: true } // Include associated days in the response
     });
     
     return NextResponse.json(sucursal);
   } catch (error) {
     console.error('Error al actualizar sucursal:', error);
+    
     return NextResponse.json(
-      { error: 'Error al actualizar sucursal' },
+      { 
+        error: 'Error al actualizar sucursal', 
+        details: error instanceof Error 
+          ? error.message 
+          : String(error)
+      }, 
       { status: 500 }
     );
   }

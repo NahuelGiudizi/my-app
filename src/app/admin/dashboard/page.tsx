@@ -1,7 +1,15 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { format } from 'date-fns';
+import AdminLayout from '@/components/AdminLayout';
+
+interface Servicio {
+  id: number;
+  nombre: string;
+  precio: number;
+  duracion: number;
+}
 
 interface Turno {
   id: number;
@@ -9,290 +17,424 @@ interface Turno {
   estado: string;
   cliente: {
     nombre: string;
-    apellido: string;
     email: string;
+    telefono: string;
   };
   barbero: {
     nombre: string;
-    apellido: string;
   };
-  servicio: {
+  sucursal: {
+    id: number;
     nombre: string;
-    duracion: number;
-    precio: number;
   };
+  servicios: Servicio[];
+  precioTotal: number;
+  duracionTotal: number;
 }
 
+type SortField = 'id' | 'fecha' | 'cliente' | 'barbero' | 'servicio' | 'estado' | 'sucursal';
+type SortOrder = 'asc' | 'desc';
+
 export default function AdminDashboard() {
-  const router = useRouter();
   const [turnos, setTurnos] = useState<Turno[]>([]);
+  const [turnosOrdenados, setTurnosOrdenados] = useState<Turno[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [sortField, setSortField] = useState<SortField>('fecha');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [filterStatus, setFilterStatus] = useState<string | null>(null);
+
+  const fetchTurnos = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('/api/turnos');
+      
+      if (!response.ok) throw new Error('Error al cargar turnos');
+      
+      const data = await response.json();
+      setTurnos(data);
+      ordenarTurnos(data, sortField, sortOrder);
+    } catch (error) {
+      console.error('Error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     fetchTurnos();
   }, []);
 
-  // Improved fetchTurnos function with more robust error handling
-const fetchTurnos = async () => {
-  try {
-    setLoading(true);
-    setError(''); // Reset error state
+  useEffect(() => {
+    ordenarTurnos(turnos, sortField, sortOrder);
+  }, [sortField, sortOrder, turnos, filterStatus, searchQuery]);
 
-    // Add authentication headers if required
-    const headers = {
-      'Content-Type': 'application/json',
-      // Add any authentication token if needed
-      // 'Authorization': `Bearer ${yourAuthToken}`
-    };
-
-    const response = await fetch('/api/admin/turnos', { 
-      method: 'GET',
-      headers: headers
-    });
+  const ordenarTurnos = (turnos: Turno[], campo: SortField, orden: SortOrder) => {
+    // Primero aplicamos filtros si existen
+    let turnosFiltrados = [...turnos];
     
-    // More detailed error handling
-    if (!response.ok) {
-      const errorBody = await response.text();
-      console.error('Full error response:', errorBody);
+    // Filtrar por estado si está seleccionado
+    if (filterStatus) {
+      turnosFiltrados = turnosFiltrados.filter(turno => turno.estado === filterStatus);
+    }
+    
+    // Buscar por texto si hay una consulta
+    if (searchQuery.trim() !== '') {
+      const query = searchQuery.toLowerCase().trim();
+      turnosFiltrados = turnosFiltrados.filter(turno => 
+        turno.id.toString().includes(query) ||
+        turno.cliente.nombre.toLowerCase().includes(query) ||
+        turno.cliente.email.toLowerCase().includes(query) ||
+        turno.barbero.nombre.toLowerCase().includes(query) ||
+        (turno.sucursal?.nombre || '').toLowerCase().includes(query) ||
+        turno.estado.toLowerCase().includes(query) ||
+        turno.servicios.some(s => s.nombre.toLowerCase().includes(query))
+      );
+    }
+    
+    // Luego ordenamos
+    const sorted = turnosFiltrados.sort((a, b) => {
+      let valorA: any, valorB: any;
       
-      switch (response.status) {
-        case 401:
-          setError('No autorizado. Por favor, inicie sesión nuevamente.');
-          break;
-        case 403:
-          setError('No tiene permisos para ver los turnos.');
-          break;
-        case 404:
-          setError('Endpoint de turnos no encontrado.');
-          break;
-        case 500:
-          setError('Error interno del servidor al cargar turnos.');
-          break;
-        default:
-          setError(`Error al cargar turnos. Código de estado: ${response.status}`);
+      switch (campo) {
+        case 'id': valorA = a.id; valorB = b.id; break;
+        case 'fecha': valorA = new Date(a.fecha); valorB = new Date(b.fecha); break;
+        case 'cliente': valorA = a.cliente.nombre.toLowerCase(); valorB = b.cliente.nombre.toLowerCase(); break;
+        case 'barbero': valorA = a.barbero.nombre.toLowerCase(); valorB = b.barbero.nombre.toLowerCase(); break;
+        case 'servicio': valorA = a.servicios[0]?.nombre?.toLowerCase() || ''; valorB = b.servicios[0]?.nombre?.toLowerCase() || ''; break;
+        case 'estado': valorA = a.estado.toLowerCase(); valorB = b.estado.toLowerCase(); break;
+        case 'sucursal': valorA = a.sucursal?.nombre?.toLowerCase() || ''; valorB = b.sucursal?.nombre?.toLowerCase() || ''; break;
+        default: valorA = a.fecha; valorB = b.fecha;
       }
-      
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    
-    const data = await response.json();
-    
-    // Validate data structure
-    if (!Array.isArray(data)) {
-      setError('Formato de datos inválido');
-      throw new Error('Datos recibidos no son un array');
-    }
 
-    setTurnos(data);
-  } catch (error) {
-    console.error('Fetch turnos error:', error);
-    
-    // If error is a network error or fetch failed completely
-    if (error instanceof TypeError) {
-      setError('Error de red. Verifique su conexión.');
-    } else if (error.message) {
-      setError(error.message);
-    }
-  } finally {
-    setLoading(false);
-  }
-};
+      return orden === 'asc' ? valorA > valorB ? 1 : -1 : valorA < valorB ? 1 : -1;
+    });
 
-// Debugging helper function
-const checkAPIEndpoint = async () => {
-  try {
-    const response = await fetch('/api/admin/turnos', { method: 'GET' });
-    console.log('API Response Status:', response.status);
-    console.log('API Response Headers:', Object.fromEntries(response.headers.entries()));
-    
-    const data = await response.json();
-    console.log('API Response Data:', data);
-  } catch (error) {
-    console.error('API Endpoint Check Error:', error);
-  }
-};
-
-// Possible debug call in useEffect or console
-useEffect(() => {
-  // checkAPIEndpoint(); // Uncomment to debug API endpoint
-  fetchTurnos();
-}, []);
-
-  const handleLogout = async () => {
-    try {
-      await fetch('/api/admin/logout', { method: 'POST' });
-      router.push('/admin/login');
-    } catch (error) {
-      console.error('Error al cerrar sesión:', error);
-    }
+    setTurnosOrdenados(sorted);
   };
+
+  const handleSort = (campo: SortField) => {
+    setSortField(prev => campo === prev ? prev : campo);
+    setSortOrder(prev => campo === sortField ? prev === 'asc' ? 'desc' : 'asc' : 'asc');
+  };
+
+  const renderSortIcon = (campo: SortField) => (
+    <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 ml-1 ${sortField === campo ? 'opacity-100' : 'opacity-30'}`} viewBox="0 0 20 20" fill="currentColor">
+      <path fillRule="evenodd" d={sortOrder === 'asc' ? "M3 3a1 1 0 000 2h11a1 1 0 100-2H3zm0 4a1 1 0 000 2h7a1 1 0 100-2H3zm0 4a1 1 0 100 2h4a1 1 0 100-2H3z" : "M3 3a1 1 0 000 2h11a1 1 0 100-2H3zm0 4a1 1 0 000 2h5a1 1 0 000-2H3zm0 4a1 1 0 000 2h4a1 1 0 100-2H3z"} clipRule="evenodd" />
+    </svg>
+  );
 
   const handleEstadoChange = async (id: number, nuevoEstado: string) => {
     try {
       const response = await fetch(`/api/admin/turnos/${id}`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ estado: nuevoEstado }),
       });
 
-      if (response.ok) {
-        fetchTurnos(); // Recargar los turnos
-      } else {
-        throw new Error('Error al actualizar estado');
-      }
+      response.ok && fetchTurnos();
     } catch (error) {
       console.error('Error:', error);
-      alert('Error al actualizar el estado del turno');
     }
   };
 
-  return (
-    <div className="min-h-screen bg-gray-900">
-      {/* Barra lateral */}
-      <div className="flex h-screen">
-      <div className="w-64 bg-gray-800 text-white p-4 flex flex-col h-full">
-  <h1 className="text-2xl font-bold mb-8">Panel Admin</h1>
-  <nav className="space-y-2 flex-grow">
-    <a href="/admin/dashboard" className="block py-2.5 px-4 rounded bg-blue-600 text-white">
-      Dashboard
-    </a>
-    <a href="/admin/barberos" className="block py-2.5 px-4 rounded hover:bg-gray-700 transition">
-      Barberos
-    </a>
-    <a href="/admin/servicios" className="block py-2.5 px-4 rounded hover:bg-gray-700 transition">
-      Servicios
-    </a>
-    <a href="/admin/clientes" className="block py-2.5 px-4 rounded hover:bg-gray-700 transition">
-      Clientes
-    </a>
-    <a href="/admin/sucursales" className="block py-2.5 px-4 rounded hover:bg-gray-700 transition">
-      Sucursales
-    </a>
-  </nav>
-  <button
-    onClick={handleLogout}
-    className="mt-auto py-2.5 px-4 bg-red-600 hover:bg-red-700 transition text-white rounded flex items-center justify-center"
-  >
-    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-      <path fillRule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 001 1h12a1 1 0 001-1V4a1 1 0 00-1-1H3zm9 4a1 1 0 10-2 0v4a1 1 0 102 0V7z" clipRule="evenodd" />
-      <path d="M12 15l5-5-5-5v10z" />
-    </svg>
-    Cerrar Sesión
-  </button>
-</div>
-
-        {/* Contenido principal */}
-        <div className="flex-1 p-8 overflow-auto">
-          <div className="max-w-7xl mx-auto">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-white">Turnos Reservados</h2>
-              <div className="flex space-x-2">
-                <button 
-                  onClick={() => fetchTurnos()} 
-                  className="bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700 transition"
-                >
-                  Actualizar
-                </button>
-              </div>
+  const ServiciosCell = ({ servicios, precioTotal, duracionTotal }: { 
+    servicios: Servicio[], 
+    precioTotal: number,
+    duracionTotal: number 
+  }) => {
+    const [expanded, setExpanded] = useState(false);
+    
+    return (
+      <div className="group relative">
+        <div 
+          className="font-medium cursor-pointer"
+          onClick={() => servicios.length > 1 && setExpanded(!expanded)}
+        >
+          {servicios[0]?.nombre}
+          {servicios.length > 1 && (
+            <span className="ml-2 bg-blue-600 text-white text-xs rounded-full px-1.5">
+              +{servicios.length - 1}
+            </span>
+          )}
+        </div>
+        <div className="text-sm text-gray-400">
+          {duracionTotal} min · ${precioTotal.toFixed(2)}
+        </div>
+        
+        {/* Dropdown con todos los servicios */}
+        {expanded && servicios.length > 1 && (
+          <div className="absolute top-full left-0 z-10 mt-1 w-64 rounded-md shadow-lg bg-gray-800 border border-gray-700 p-2">
+            <div className="text-sm font-medium text-white mb-1">Servicios incluidos:</div>
+            <ul className="space-y-1">
+              {servicios.map((servicio, idx) => (
+                <li key={idx} className="flex justify-between items-center text-sm">
+                  <span className="text-gray-200">{servicio.nombre}</span>
+                  <span className="text-gray-400">${servicio.precio.toFixed(2)}</span>
+                </li>
+              ))}
+            </ul>
+            <div className="mt-2 pt-2 border-t border-gray-700 flex justify-between text-sm">
+              <span className="font-medium text-blue-300">Total</span>
+              <span className="font-medium text-blue-300">${precioTotal.toFixed(2)}</span>
             </div>
+          </div>
+        )}
+      </div>
+    );
+  };
 
-            {loading ? (
-              <div className="bg-gray-800 rounded-lg p-8 text-center text-white">
-                <div className="animate-spin inline-block w-8 h-8 border-4 border-current border-t-transparent text-blue-600 rounded-full mb-3"></div>
-                <p>Cargando turnos...</p>
-              </div>
-            ) : error ? (
-              <div className="bg-red-500 bg-opacity-20 border border-red-500 text-red-500 p-4 rounded-lg text-center">
-                {error}
-              </div>
-            ) : turnos.length === 0 ? (
-              <div className="bg-gray-800 rounded-lg p-8 text-center text-gray-400">
-                No hay turnos reservados
-              </div>
-            ) : (
-              <div className="bg-gray-800 rounded-lg overflow-hidden shadow-xl">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-white">
-                    <thead>
-                      <tr className="bg-gray-700">
-                        <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
-                          Fecha y Hora
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
-                          Cliente
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
-                          Barbero
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
-                          Servicio
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
-                          Estado
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
-                          Acciones
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-700">
-                      {turnos.map((turno) => (
-                        <tr key={turno.id} className="hover:bg-gray-700 transition-colors">
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            {new Date(turno.fecha).toLocaleString()}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm">
-                              {turno.cliente.nombre} {turno.cliente.apellido}
-                            </div>
-                            <div className="text-xs text-gray-400">
-                              {turno.cliente.email}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            {turno.barbero.nombre} {turno.barbero.apellido}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm">{turno.servicio.nombre}</div>
-                            <div className="text-xs text-gray-400">
-                              {turno.servicio.duracion} min - ${turno.servicio.precio}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              turno.estado === 'PENDIENTE' ? 'bg-yellow-600' :
-                              turno.estado === 'CONFIRMADO' ? 'bg-green-600' :
-                              turno.estado === 'CANCELADO' ? 'bg-red-600' :
-                              'bg-blue-600'
-                            }`}>
-                              {turno.estado}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm">
-                            <select 
-                              className="bg-gray-700 text-white rounded px-2 py-1 border border-gray-600"
-                              value={turno.estado}
-                              onChange={(e) => handleEstadoChange(turno.id, e.target.value)}
-                            >
-                              <option value="PENDIENTE">Pendiente</option>
-                              <option value="CONFIRMADO">Confirmado</option>
-                              <option value="CANCELADO">Cancelado</option>
-                              <option value="COMPLETADO">Completado</option>
-                            </select>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+  const getBadgeClass = (estado: string) => {
+    const classes = {
+      'PENDIENTE': 'bg-yellow-600/30 text-yellow-300',
+      'CONFIRMADO': 'bg-green-600/30 text-green-300',
+      'CANCELADO': 'bg-red-600/30 text-red-300',
+      'COMPLETADO': 'bg-blue-600/30 text-blue-300'
+    };
+    return classes[estado as keyof typeof classes] || 'bg-gray-600/30 text-gray-300';
+  };
+
+  // Acciones para el encabezado
+  const dashboardActions = (
+    <>
+      <div className="relative flex-grow max-w-md">
+        <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+          <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+          </svg>
+        </div>
+        <input
+          type="search"
+          className="block w-full p-2 pl-10 text-sm bg-gray-800 border border-gray-600 placeholder-gray-400 text-white rounded-lg focus:ring-blue-500 focus:border-blue-500"
+          placeholder="Buscar turno..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
+        {searchQuery && (
+          <button
+            className="absolute inset-y-0 right-0 flex items-center pr-3"
+            onClick={() => setSearchQuery('')}
+          >
+            <svg className="w-4 h-4 text-gray-400 hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+          </button>
+        )}
+      </div>
+      
+      <button 
+        onClick={fetchTurnos}
+        className="px-3 py-1.5 md:px-4 md:py-2 bg-blue-600/30 hover:bg-blue-700/40 text-blue-300 rounded-md text-sm font-medium transition-colors"
+      >
+        Actualizar
+      </button>
+    </>
+  );
+
+  if (loading) {
+    return (
+      <AdminLayout title="Dashboard" currentPage="dashboard">
+        <div className="flex items-center justify-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+        </div>
+      </AdminLayout>
+    );
+  }
+
+  return (
+    <AdminLayout title="Turnos Reservados" currentPage="dashboard" actions={dashboardActions}>
+      {/* Filtros de estado */}
+      {/* <div className="mb-6 flex flex-wrap gap-2">
+        <div className="flex items-center mr-4">
+          <span className="text-sm text-gray-400 mr-2">Estado:</span>
+          <div className="flex gap-1">
+            {['PENDIENTE', 'CONFIRMADO', 'CANCELADO', 'COMPLETADO'].map((estado) => (
+              <button
+                key={estado}
+                onClick={() => setFilterStatus(filterStatus === estado ? null : estado)}
+                className={`px-2 py-1 rounded-md text-xs ${
+                  filterStatus === estado 
+                    ? `${getBadgeClass(estado)} font-medium` 
+                    : 'bg-gray-700/50 text-gray-300'
+                }`}
+              >
+                {estado}
+              </button>
+            ))}
+            {filterStatus && (
+              <button 
+                onClick={() => setFilterStatus(null)}
+                className="px-2 py-1 bg-gray-700 text-xs rounded hover:bg-gray-600 text-gray-300"
+              >
+                Limpiar
+              </button>
             )}
           </div>
         </div>
-      </div>
-    </div>
+      </div> */}
+
+      {/* Mensaje de no resultados */}
+      {turnosOrdenados.length === 0 && (
+        <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-8 text-center border border-gray-700/30">
+          <p className="text-gray-400">
+            {filterStatus && !searchQuery 
+              ? `No hay turnos con estado "${filterStatus}"`
+              : searchQuery && !filterStatus 
+              ? `No hay resultados para "${searchQuery}"`
+              : searchQuery && filterStatus 
+              ? `No hay resultados para "${searchQuery}" con estado "${filterStatus}"`
+              : "No hay turnos disponibles"}
+          </p>
+        </div>
+      )}
+
+      {/* Tabla de turnos (solo visible en desktop) */}
+      {turnosOrdenados.length > 0 && (
+        <div className="hidden md:block bg-gray-800/50 backdrop-blur-sm rounded-xl border border-gray-700/30">
+          <table className="w-full">
+            <thead className="bg-gray-700/30">
+              <tr className="text-left text-sm text-gray-300">
+                {['id', 'fecha', 'cliente', 'barbero', 'sucursal', 'servicio', 'estado'].map((campo) => (
+                  <th 
+                    key={campo} 
+                    onClick={() => handleSort(campo as SortField)}
+                    className="px-4 py-3 cursor-pointer hover:bg-gray-700/40 transition-colors uppercase font-medium"
+                  >
+                    <div className="flex items-center">
+                      {campo.replace(/_/g, ' ')}
+                      {renderSortIcon(campo as SortField)}
+                    </div>
+                  </th>
+                ))}
+                <th className="px-4 py-3">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {turnosOrdenados.map((turno) => (
+                <tr key={turno.id} className="border-t border-gray-700/30 hover:bg-gray-700/10 transition-colors">
+                  <td className="px-4 py-3 font-medium text-blue-400">#{turno.id}</td>
+                  <td className="px-4 py-3 text-sm">{format(new Date(turno.fecha), 'dd/MM/yy HH:mm')}</td>
+                  <td className="px-4 py-3">
+                    <div className="text-white">{turno.cliente.nombre}</div>
+                    <div className="text-xs text-gray-400">{turno.cliente.email}</div>
+                  </td>
+                  <td className="px-4 py-3 text-white">{turno.barbero.nombre}</td>
+                  <td className="px-4 py-3 text-white">{turno.sucursal?.nombre || '-'}</td>
+                  <td className="px-4 py-3">
+                    <ServiciosCell 
+                      servicios={turno.servicios} 
+                      precioTotal={turno.precioTotal}
+                      duracionTotal={turno.duracionTotal}
+                    />
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`px-2.5 py-1 rounded-full text-xs ${getBadgeClass(turno.estado)}`}>
+                      {turno.estado}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <select 
+                      value={turno.estado}
+                      onChange={(e) => handleEstadoChange(turno.id, e.target.value)}
+                      className="bg-gray-700/50 border border-gray-600/30 text-white rounded-lg px-3 py-1.5 text-sm backdrop-blur-sm"
+                    >
+                      {['PENDIENTE', 'CONFIRMADO', 'CANCELADO', 'COMPLETADO'].map((estado) => (
+                        <option key={estado} value={estado}>
+                          {estado}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Versión móvil */}
+      {turnosOrdenados.length > 0 && (
+        <div className="md:hidden space-y-4">
+          {turnosOrdenados.map((turno) => (
+            <div key={turno.id} className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-4 border border-gray-700/30">
+              <div className="flex justify-between items-start mb-3">
+                <div>
+                  <div className="font-bold text-blue-400">#{turno.id}</div>
+                  <div className="text-xs text-gray-400 mt-1">
+                    {format(new Date(turno.fecha), 'dd/MM/yy HH:mm')}
+                  </div>
+                </div>
+                <span className={`px-2 py-1 rounded-full text-xs ${getBadgeClass(turno.estado)}`}>
+                  {turno.estado}
+                </span>
+              </div>
+              
+              <div className="space-y-2.5">
+                <div>
+                  <div className="text-xs text-gray-400 mb-1">Cliente</div>
+                  <div className="text-sm text-white">{turno.cliente.nombre}</div>
+                </div>
+                
+                <div>
+                  <div className="text-xs text-gray-400 mb-1">Barbero</div>
+                  <div className="text-sm text-white">{turno.barbero.nombre}</div>
+                </div>
+
+                <div>
+                  <div className="text-xs text-gray-400 mb-1">Sucursal</div>
+                  <div className="text-sm text-white">{turno.sucursal?.nombre || '-'}</div>
+                </div>
+
+                <div>
+                  <div className="text-xs text-gray-400 mb-1">Servicios</div>
+                  <div className="relative">
+                    <div>
+                      <div className="font-medium">
+                        {turno.servicios[0]?.nombre}
+                        {turno.servicios.length > 1 && (
+                          <span className="ml-2 bg-blue-600 text-white text-xs rounded-full px-1.5">
+                            +{turno.servicios.length - 1}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-sm text-gray-400">
+                        {turno.duracionTotal} min · ${turno.precioTotal.toFixed(2)}
+                      </div>
+                    </div>
+                    
+                    {/* Mobile: Mostrar todos los servicios directamente */}
+                    {turno.servicios.length > 1 && (
+                      <div className="mt-2 pl-2 border-l-2 border-gray-700 space-y-1">
+                        {turno.servicios.slice(1).map((servicio, idx) => (
+                          <div key={idx} className="flex justify-between items-center text-xs">
+                            <span className="text-gray-300">{servicio.nombre}</span>
+                            <span className="text-gray-400">${servicio.precio.toFixed(2)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-xs text-gray-400 mb-1">Cambiar Estado</div>
+                  <select 
+                    value={turno.estado}
+                    onChange={(e) => handleEstadoChange(turno.id, e.target.value)}
+                    className="w-full bg-gray-700/50 border border-gray-600/30 text-white rounded-lg px-3 py-1.5 text-sm backdrop-blur-sm"
+                  >
+                    {['PENDIENTE', 'CONFIRMADO', 'CANCELADO', 'COMPLETADO'].map((estado) => (
+                      <option key={estado} value={estado}>
+                        {estado}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </AdminLayout>
   );
 }

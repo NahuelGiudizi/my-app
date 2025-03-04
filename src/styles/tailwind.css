@@ -1,0 +1,11 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+  .admin-glass {
+    @apply bg-gray-900/50 backdrop-blur-md border border-gray-700/30;
+  }
+  
+
+}

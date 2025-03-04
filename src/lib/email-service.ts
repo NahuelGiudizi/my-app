@@ -1,8 +1,5 @@
 // src/lib/email-service.ts
-import { Resend } from 'resend';
-
-// Inicializar Resend con la API key (debe estar en variables de entorno)
-const resend = new Resend(process.env.RESEND_API_KEY);
+import nodemailer from 'nodemailer';
 
 interface TurnoInfo {
   id: number;
@@ -26,6 +23,17 @@ interface TurnoInfo {
   }>;
 }
 
+// Configurar el transporte de correo con Gmail y SSL
+const transporter = nodemailer.createTransport({
+  host: 'smtp.gmail.com',
+  port: 465,
+  secure: true, // usar SSL
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASSWORD,
+  },
+});
+
 export async function enviarConfirmacionTurno(turno: TurnoInfo) {
   try {
     // Formatear la fecha y hora
@@ -46,9 +54,9 @@ export async function enviarConfirmacionTurno(turno: TurnoInfo) {
     const tokenCancelacion = Buffer.from(`${turno.id}-${Date.now()}`).toString('base64');
     const urlCancelacion = `${process.env.NEXT_PUBLIC_APP_URL}/cancelar-turno?token=${tokenCancelacion}`;
 
-    // Enviar el correo electrónico
-    const { data, error } = await resend.emails.send({
-      from: 'Barbería <turnos@barberia.system.com>',
+    // Enviar el correo electrónico usando nodemailer
+    const info = await transporter.sendMail({
+      from: `"Barbería" <${process.env.EMAIL_USER}>`,
       to: turno.cliente.email,
       subject: 'Confirmación de Turno - Barbería',
       html: `
@@ -82,12 +90,7 @@ export async function enviarConfirmacionTurno(turno: TurnoInfo) {
       `,
     });
 
-    if (error) {
-      console.error('Error al enviar email de confirmación:', error);
-      throw new Error(`Error al enviar email: ${error.message}`);
-    }
-
-    return { success: true, messageId: data.id };
+    return { success: true, messageId: info.messageId };
   } catch (error) {
     console.error('Error en el servicio de email:', error);
     return { success: false, error };
@@ -96,16 +99,15 @@ export async function enviarConfirmacionTurno(turno: TurnoInfo) {
 
 export async function enviarRecordatorioTurno(turno: TurnoInfo) {
   try {
-    // Lógica similar a la función anterior pero con mensaje de recordatorio
-    // Se enviaría 24 horas antes del turno
-    
+    // Formatear la fecha y hora
     const fechaFormateada = new Intl.DateTimeFormat('es-ES', {
       dateStyle: 'full',
       timeStyle: 'short'
     }).format(turno.fecha);
 
-    const { data, error } = await resend.emails.send({
-      from: 'Barbería <turnos@barberia.system.com>',
+    // Enviar el correo electrónico usando nodemailer
+    const info = await transporter.sendMail({
+      from: `"Barbería" <${process.env.EMAIL_USER}>`,
       to: turno.cliente.email,
       subject: 'Recordatorio de tu turno mañana - Barbería',
       html: `
@@ -128,14 +130,20 @@ export async function enviarRecordatorioTurno(turno: TurnoInfo) {
       `,
     });
 
-    if (error) {
-      console.error('Error al enviar email de recordatorio:', error);
-      throw new Error(`Error al enviar recordatorio: ${error.message}`);
-    }
-
-    return { success: true, messageId: data.id };
+    return { success: true, messageId: info.messageId };
   } catch (error) {
     console.error('Error en el servicio de email (recordatorio):', error);
+    return { success: false, error };
+  }
+}
+
+// Función para verificar la conexión al servidor de correo
+export async function verificarConexionEmail() {
+  try {
+    await transporter.verify();
+    return { success: true, message: 'Conexión establecida correctamente' };
+  } catch (error) {
+    console.error('Error al verificar conexión de email:', error);
     return { success: false, error };
   }
 }

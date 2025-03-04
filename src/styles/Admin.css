@@ -1,0 +1,57 @@
+/* styles/admin.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+  /* Common styles */
+  .admin-card {
+    @apply bg-gray-800/50 backdrop-blur-sm rounded-xl border border-gray-700/30;
+  }
+  
+  .admin-button-primary {
+    @apply px-3 py-2 bg-blue-600/30 hover:bg-blue-700/40 text-blue-300 rounded-md text-sm font-medium transition-colors;
+  }
+  
+  .admin-button-danger {
+    @apply px-3 py-2 bg-red-600/30 hover:bg-red-700/40 text-red-300 rounded-md text-sm font-medium transition-colors;
+  }
+  
+  .admin-badge {
+    @apply px-2 py-1 rounded-lg text-xs font-medium;
+  }
+  
+  .admin-input {
+    @apply px-3 py-2 bg-gray-700/50 border border-gray-600/30 text-white rounded-lg backdrop-blur-sm;
+  }
+  
+  /* Header styles */
+  .admin-header {
+    @apply fixed top-0 left-0 right-0 z-40 bg-gray-800 shadow-md;
+  }
+  
+  /* Sidebar styles */
+  .admin-sidebar {
+    @apply hidden md:block fixed left-0 top-0 w-64 bg-gray-800 text-white p-4 h-full z-40;
+  }
+  
+  .admin-sidebar-item {
+    @apply block py-2.5 px-4 rounded hover:bg-gray-700 transition-colors text-sm font-medium;
+  }
+  
+  .admin-sidebar-item-active {
+    @apply block py-2.5 px-4 rounded bg-blue-600 text-white text-sm font-medium;
+  }
+  
+  /* Mobile menu styles */
+  .admin-mobile-menu {
+    @apply fixed md:hidden z-30 bg-gray-800 shadow-lg transition-all duration-300;
+  }
+  
+  .admin-mobile-menu-open {
+    @apply translate-y-14;
+  }
+  
+  .admin-mobile-menu-closed {
+    @apply -translate-y-full;
+  }

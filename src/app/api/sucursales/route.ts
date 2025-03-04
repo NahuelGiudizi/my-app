@@ -1,3 +1,4 @@
+//my-app\src\app\api\sucursales\route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 
@@ -6,8 +7,8 @@ const prisma = new PrismaClient();
 export async function GET(request: NextRequest) {
   try {
     const sucursales = await prisma.sucursal.findMany({
-      orderBy: {
-        nombre: 'asc'
+      include: {
+        diasAtencion: true
       }
     });
     

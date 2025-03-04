@@ -1,3 +1,4 @@
+// my-app\src\app\api\turnos\disponibilidad\route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { addMinutes, format, parse, isAfter, isBefore, isSameDay } from 'date-fns';
@@ -26,6 +27,13 @@ export async function GET(request: NextRequest) {
     const sucursalIdNum = parseInt(sucursalId);
     const barberoIdNum = barberoId ? parseInt(barberoId) : undefined;
     
+    console.log("Verificando disponibilidad para:", {
+      fecha,
+      sucursalId: sucursalIdNum,
+      barberoId: barberoIdNum,
+      serviciosIds
+    });
+    
     // Calcular duración total en minutos si se seleccionaron servicios
     let duracionTotal = 0;
     
@@ -40,9 +48,11 @@ export async function GET(request: NextRequest) {
       });
       
       duracionTotal = servicios.reduce((total, servicio) => total + servicio.duracion, 0);
+      console.log(`Duración total de servicios: ${duracionTotal} minutos`);
     } else {
       // Duración por defecto si no se seleccionaron servicios
       duracionTotal = 30;
+      console.log("Usando duración por defecto: 30 minutos");
     }
 
     // Obtener información de la sucursal
@@ -62,9 +72,34 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Convertir fecha de string a Date
+    console.log("Información de sucursal:", {
+      diasAtencion: sucursal.diasAtencion,
+      horarioInicio: sucursal.horarioInicio,
+      horarioFin: sucursal.horarioFin
+    });
+
+    // Crear fechas UTC para inicio y fin del día
     const fechaDate = new Date(fecha);
-    const diaSemana = fechaDate.getDay(); // 0 = Domingo, 1 = Lunes, ..., 6 = Sábado
+    const inicioDelDiaUTC = new Date(Date.UTC(
+      fechaDate.getUTCFullYear(),
+      fechaDate.getUTCMonth(),
+      fechaDate.getUTCDate(),
+      0, 0, 0, 0
+    ));
+
+    const finDelDiaUTC = new Date(Date.UTC(
+      fechaDate.getUTCFullYear(),
+      fechaDate.getUTCMonth(),
+      fechaDate.getUTCDate(),
+      23, 59, 59, 999
+    ));
+
+    console.log("Rango de fecha para búsqueda:", {
+      inicioDelDiaUTC: inicioDelDiaUTC.toISOString(),
+      finDelDiaUTC: finDelDiaUTC.toISOString()
+    });
+
+    const diaSemana = fechaDate.getUTCDay(); // 0 = Domingo, 1 = Lunes, ..., 6 = Sábado
     
     // Verificar si la sucursal atiende en el día seleccionado
     const diasAtencionArr = sucursal.diasAtencion.split(',');
@@ -73,16 +108,45 @@ export async function GET(request: NextRequest) {
     };
     
     const diaSemanaStr = Object.keys(diasMap).find(key => diasMap[key] === diaSemana);
+    console.log(`Día de la semana: ${diaSemanaStr} (${diaSemana})`);
+    
     if (!diaSemanaStr || !diasAtencionArr.includes(diaSemanaStr)) {
+      console.log(`Sucursal no atiende este día (${diaSemanaStr}). Días de atención: ${diasAtencionArr.join(', ')}`);
       return NextResponse.json({ 
         disponibilidad: [], 
         mensaje: 'La sucursal no atiende este día' 
       });
     }
 
-    // Parsear horarios de la sucursal
-    const horaApertura = parse(sucursal.horarioInicio, 'HH:mm', new Date());
-    const horaCierre = parse(sucursal.horarioFin, 'HH:mm', new Date());
+    // Convertir horarios de la sucursal a UTC
+    const [horaInicioHora, horaInicioMin] = sucursal.horarioInicio.split(':').map(Number);
+    const [horaFinHora, horaFinMin] = sucursal.horarioFin.split(':').map(Number);
+    
+    // Crear objetos Date para la jornada en UTC
+    const inicioJornadaUTC = new Date(Date.UTC(
+      fechaDate.getUTCFullYear(),
+      fechaDate.getUTCMonth(),
+      fechaDate.getUTCDate(),
+      horaInicioHora,
+      horaInicioMin,
+      0,
+      0
+    ));
+    
+    const finJornadaUTC = new Date(Date.UTC(
+      fechaDate.getUTCFullYear(),
+      fechaDate.getUTCMonth(),
+      fechaDate.getUTCDate(),
+      horaFinHora,
+      horaFinMin,
+      0,
+      0
+    ));
+    
+    console.log("Horario de la sucursal en UTC:", {
+      inicioJornadaUTC: inicioJornadaUTC.toISOString(),
+      finJornadaUTC: finJornadaUTC.toISOString()
+    });
 
     // Obtener los barberos disponibles en la sucursal para el día seleccionado
     let barberos;
@@ -107,6 +171,7 @@ export async function GET(request: NextRequest) {
       }
       
       barberos = [sucursalBarbero];
+      console.log(`Verificando disponibilidad para barbero específico: ${sucursalBarbero.barbero.nombre} ${sucursalBarbero.barbero.apellido}`);
     } else {
       // Si no se especificó barbero, obtener todos los disponibles en esa sucursal
       barberos = await prisma.barberoSucursal.findMany({
@@ -117,14 +182,15 @@ export async function GET(request: NextRequest) {
           barbero: true
         }
       });
+      console.log(`Verificando disponibilidad para todos los barberos (${barberos.length})`);
     }
 
-    // Obtener todos los turnos existentes para la fecha, sucursal y barbero(s) seleccionados
+    // Usar variables UTC para la consulta de turnos existentes
     const turnosExistentes = await prisma.turno.findMany({
       where: {
         fecha: {
-          gte: new Date(new Date(fecha).setHours(0, 0, 0, 0)),
-          lt: new Date(new Date(fecha).setHours(23, 59, 59, 999))
+          gte: inicioDelDiaUTC,
+          lt: finDelDiaUTC
         },
         sucursalId: sucursalIdNum,
         barberoId: barberoIdNum ? barberoIdNum : {
@@ -146,37 +212,52 @@ export async function GET(request: NextRequest) {
         },
         barbero: {
           select: {
-            nombre: true
+            nombre: true,
+            apellido: true
           }
         }
       }
     });
 
-    // Crear slots de tiempo disponibles (cada 30 minutos)
-    const slots = [];
-    let currentTime = new Date(fechaDate);
-    currentTime.setHours(horaApertura.getHours(), horaApertura.getMinutes(), 0, 0);
+    console.log(`Encontrados ${turnosExistentes.length} turnos existentes para esta fecha`);
     
-    const endTime = new Date(fechaDate);
-    endTime.setHours(horaCierre.getHours(), horaCierre.getMinutes(), 0, 0);
+    // Listar los turnos existentes para depuración
+    turnosExistentes.forEach(turno => {
+      const duracionTurno = turno.servicios.reduce(
+        (total, ts) => total + ts.servicio.duracion, 0
+      );
+      const turnoInicio = new Date(turno.fecha);
+      const turnoFin = addMinutes(new Date(turno.fecha), duracionTurno);
+      
+      console.log(`Turno #${turno.id}: ${turnoInicio.toISOString()} - ${turnoFin.toISOString()} (${duracionTurno} min) - Barbero: ${turno.barbero.nombre} ${turno.barbero.apellido}`);
+    });
+
+    // Crear slots de tiempo disponibles (cada 30 minutos) utilizando UTC
+    const slots = [];
+    let currentTime = new Date(inicioJornadaUTC);
     
     // Asegurar que no intentamos generar slots en el pasado
-    const now = new Date();
-    if (isSameDay(currentTime, now) && isAfter(now, currentTime)) {
+    const nowUTC = new Date();
+    if (isSameDay(currentTime, nowUTC) && isAfter(nowUTC, currentTime)) {
       // Si es hoy y ya pasamos la hora de apertura, empezamos desde ahora
-      // Redondeamos a los siguientes 30 minutos
-      const minutes = now.getMinutes();
-      const roundToNext30 = minutes > 30 ? 60 - minutes : 30 - minutes;
-      currentTime = addMinutes(now, roundToNext30);
+      // Redondeamos a los siguientes 30 minutos en UTC
+      const minutesUTC = nowUTC.getUTCMinutes();
+      const roundToNext30 = minutesUTC > 30 ? 60 - minutesUTC : 30 - minutesUTC;
+      currentTime = addMinutes(nowUTC, roundToNext30);
+      console.log(`Ajustando hora de inicio a ${currentTime.toISOString()} porque estamos en el mismo día`);
     }
 
+    console.log(`Generando slots desde ${currentTime.toISOString()} hasta ${finJornadaUTC.toISOString()}`);
+
     // Generar todos los slots de tiempo posibles
-    while (isBefore(currentTime, endTime)) {
+    while (isBefore(currentTime, finJornadaUTC)) {
       // Para cada slot, verificar disponibilidad con cada barbero
       for (const sucursalBarbero of barberos) {
         // Verificar si el slot conflictúa con turnos existentes
+        const slotInicio = new Date(currentTime);
         const slotFin = addMinutes(new Date(currentTime), duracionTotal);
         let conflicto = false;
+        let turnoConflicto = null;
         
         for (const turno of turnosExistentes.filter(t => t.barberoId === sucursalBarbero.barberoId)) {
           const turnoDuracion = turno.servicios.reduce(
@@ -187,29 +268,34 @@ export async function GET(request: NextRequest) {
           const turnoFin = addMinutes(turnoInicio, turnoDuracion);
           
           // Verificar si hay solapamiento entre el slot y el turno
-          if (
-            (isAfter(slotFin, turnoInicio) && isBefore(currentTime, turnoFin)) || 
-            (isSameDay(slotFin, turnoInicio) && slotFin.getTime() === turnoInicio.getTime()) ||
-            (isSameDay(currentTime, turnoFin) && currentTime.getTime() === turnoFin.getTime())
-          ) {
+          const haySupeposicion = (
+            (slotInicio < turnoFin && slotFin > turnoInicio)
+          );
+          
+          if (haySupeposicion) {
             conflicto = true;
+            turnoConflicto = turno;
             break;
           }
         }
         
         if (!conflicto) {
           slots.push({
-            hora: format(currentTime, 'HH:mm'),
+            hora: format(slotInicio, 'HH:mm'),
             barberoId: sucursalBarbero.barberoId,
             barberoNombre: `${sucursalBarbero.barbero.nombre} ${sucursalBarbero.barbero.apellido}`,
             disponible: true
           });
+        } else if (turnoConflicto) {
+          console.log(`Slot ${format(slotInicio, 'HH:mm')} no disponible para barbero ${sucursalBarbero.barbero.nombre} por conflicto con turno #${turnoConflicto.id}`);
         }
       }
       
       // Avanzar al siguiente slot (30 minutos)
       currentTime = addMinutes(currentTime, 30);
     }
+
+    console.log(`Generados ${slots.length} slots disponibles en total`);
 
     // Agrupar slots por hora para mostrar los barberos disponibles en cada horario
     const slotsAgrupados = slots.reduce((result: Record<string, any>, slot) => {
@@ -230,8 +316,11 @@ export async function GET(request: NextRequest) {
       return result;
     }, {});
 
+    const slotsResultado = Object.values(slotsAgrupados);
+    console.log(`Respondiendo con ${slotsResultado.length} slots agrupados por hora`);
+
     return NextResponse.json({ 
-      disponibilidad: Object.values(slotsAgrupados),
+      disponibilidad: slotsResultado,
       fecha: format(fechaDate, 'EEEE d MMMM yyyy', { locale: es }),
       duracionServicio: duracionTotal
     });
@@ -239,7 +328,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Error al obtener disponibilidad:', error);
     return NextResponse.json(
-      { error: 'Error al procesar la solicitud' },
+      { error: 'Error al procesar la solicitud', detalle: error.message },
       { status: 500 }
     );
   }

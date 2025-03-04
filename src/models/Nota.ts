@@ -1,3 +1,5 @@
+//my-app\src\models\Nota.ts
+
 import mongoose from 'mongoose';
 
 const NotaSchema = new mongoose.Schema({
