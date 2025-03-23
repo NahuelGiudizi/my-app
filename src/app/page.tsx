@@ -1,55 +1,26 @@
-'use client';
+"use client";
 
-import Link from 'next/link';
-import { useState, useEffect } from 'react';
-import AppointmentForm from '@/components/AppointmentForm';
-import ServiceAndBarberList from '@/components/ServiceAndBarberList';
-import AnimatedBackground from '@/components/AnimatedBackground';
+import Link from "next/link";
+import { useState, useEffect } from "react";
+import LocationSelector from "@/components/LocationSelector";
+import AnimatedBackground from "@/components/AnimatedBackground";
 
 export default function Home() {
-  // Estado para manejar la visibilidad del modal
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  // Estados para pasar datos preseleccionados al formulario
-  const [selectedService, setSelectedService] = useState<number | null>(null);
-  const [selectedBarber, setSelectedBarber] = useState<number | null>(null);
-
-  // Esta función maneja todos los clics de reserva y pasa los datos adecuados
-  const handleReserveClick = (type: 'service' | 'barber' | 'promotion', id?: number) => {
-    if (type === 'service') {
-      setSelectedService(id || null);
-      setSelectedBarber(null);
-    } else if (type === 'barber') {
-      setSelectedBarber(id || null);
-      setSelectedService(null);
-    }
-    // Abrir el modal
-    setIsModalOpen(true);
-    // Prevenir scroll en el body cuando el modal está abierto
-    document.body.style.overflow = 'hidden';
-  };
-
-  // Cerrar el modal y restaurar el scroll
-  const handleCloseModal = () => {
-    setIsModalOpen(false);
-    document.body.style.overflow = 'auto';
-  };
-
-  // Limpiar el estilo de overflow cuando el componente se desmonta
-  useEffect(() => {
-    return () => {
-      document.body.style.overflow = 'auto';
-    };
-  }, []);
-
   return (
     <main className="min-h-screen bg-gray-900 py-12 relative overflow-hidden">
       {/* Animated Background Component */}
       <AnimatedBackground />
-      
-      {/* Botón de Admin en la esquina superior derecha */}
-      <div className="absolute top-4 right-4 z-10">
-        <Link 
-          href="/admin/login" 
+
+      {/* Enlaces de navegación */}
+      <div className="absolute top-4 right-4 z-10 flex space-x-4">
+        <Link
+          href="/cliente/login"
+          className="text-gray-400 hover:text-white transition-colors text-sm"
+        >
+          Iniciar Sesión
+        </Link>
+        <Link
+          href="/admin/login"
           className="text-gray-400 hover:text-white transition-colors text-sm"
         >
           Panel Admin
@@ -62,131 +33,183 @@ export default function Home() {
             Barbería System
           </h1>
           <p className="text-gray-400 max-w-md mx-auto">
-            Cortes de precisión y estilo que definen tu imagen personal
+            Encuentra tu barbería ideal y agenda tu cita en minutos
           </p>
-          
-          {/* CTA principal */}
-          <button 
-            onClick={() => handleReserveClick('promotion')}
-            className="mt-8 px-6 py-3 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/20 hover:shadow-blue-500/40 hover:translate-y-[-2px] active:translate-y-0"
-          >
-            Reservar Ahora
-          </button>
         </div>
-        
-        <div className="grid lg:grid-cols-2 gap-10 max-w-7xl mx-auto">
-          {/* Panel de servicios y barberos */}
-          <div className="bg-gray-800/80 rounded-lg p-6 shadow-xl hover:shadow-blue-900/10 transition-all border border-gray-700/50">
-            <ServiceAndBarberList 
-              onServiceReserveClick={(id) => handleReserveClick('service', id)}
-              onBarberReserveClick={(id) => handleReserveClick('barber', id)}
-            />
+
+        <div className="grid md:grid-cols-2 gap-10 max-w-7xl mx-auto">
+          {/* Selector de ubicación */}
+          <div className="md:col-span-1">
+            <LocationSelector />
           </div>
-          
-          {/* Panel con formulario visible solo en desktop */}
-          <div className="bg-gray-800/80 rounded-lg p-6 shadow-xl hover:shadow-blue-900/10 transition-all hidden lg:block border border-gray-700/50">
-            <AppointmentForm 
-              preselectedService={selectedService} 
-              preselectedBarber={selectedBarber}
-            />
+
+          {/* Barberías destacadas */}
+          <div className="md:col-span-1 bg-gray-800/80 rounded-lg p-6 backdrop-blur-sm shadow-lg">
+            <h2 className="text-xl font-bold text-white mb-4">
+              Barberías destacadas
+            </h2>
+
+            <div className="space-y-4">
+              {/* Mostraremos 3-4 barberías destacadas con su información */}
+              <div className="bg-gray-700/50 rounded-lg p-4 flex space-x-4 hover:bg-gray-700 transition-colors">
+                <div className="w-16 h-16 bg-gray-600 rounded-lg flex-shrink-0 flex items-center justify-center">
+                  <span className="text-2xl font-bold text-white">BS</span>
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-bold text-white mb-1">Barbería System</h3>
+                  <p className="text-sm text-gray-300 mb-1">
+                    La mejor experiencia en cortes de cabello
+                  </p>
+                  <div className="flex space-x-2 text-xs">
+                    <span className="px-2 py-0.5 bg-blue-900/40 text-blue-200 rounded-full">
+                      3 sucursales
+                    </span>
+                    <span className="px-2 py-0.5 bg-green-900/40 text-green-200 rounded-full">
+                      15 barberos
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Placeholder para más barberías destacadas */}
+              <div className="bg-gray-700/50 rounded-lg p-4 flex space-x-4 hover:bg-gray-700 transition-colors">
+                <div className="w-16 h-16 bg-gray-600 rounded-lg flex-shrink-0 flex items-center justify-center">
+                  <span className="text-2xl font-bold text-white">EB</span>
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-bold text-white mb-1">Elite Barbers</h3>
+                  <p className="text-sm text-gray-300 mb-1">
+                    Estilo y elegancia en cada corte
+                  </p>
+                  <div className="flex space-x-2 text-xs">
+                    <span className="px-2 py-0.5 bg-blue-900/40 text-blue-200 rounded-full">
+                      2 sucursales
+                    </span>
+                    <span className="px-2 py-0.5 bg-green-900/40 text-green-200 rounded-full">
+                      8 barberos
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-gray-700/50 rounded-lg p-4 flex space-x-4 hover:bg-gray-700 transition-colors">
+                <div className="w-16 h-16 bg-gray-600 rounded-lg flex-shrink-0 flex items-center justify-center">
+                  <span className="text-2xl font-bold text-white">CB</span>
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-bold text-white mb-1">Classic Barber</h3>
+                  <p className="text-sm text-gray-300 mb-1">
+                    Tradición y modernidad en barbería
+                  </p>
+                  <div className="flex space-x-2 text-xs">
+                    <span className="px-2 py-0.5 bg-blue-900/40 text-blue-200 rounded-full">
+                      5 sucursales
+                    </span>
+                    <span className="px-2 py-0.5 bg-green-900/40 text-green-200 rounded-full">
+                      20 barberos
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="text-center mt-6">
+                <Link
+                  href="/barberias/destacadas"
+                  className="text-blue-400 hover:text-blue-300 text-sm font-medium"
+                >
+                  Ver todas las barberías destacadas →
+                </Link>
+              </div>
+            </div>
           </div>
         </div>
-        
+
+        {/* Sección de beneficios */}
+        <div className="mt-20 grid md:grid-cols-3 gap-8 max-w-7xl mx-auto">
+          <div className="bg-gray-800/60 backdrop-blur-sm p-6 rounded-lg text-center">
+            <div className="bg-blue-600/30 w-12 h-12 mx-auto rounded-full flex items-center justify-center mb-4">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-6 w-6 text-blue-300"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            </div>
+            <h3 className="text-xl font-bold text-white mb-2">Ahorra tiempo</h3>
+            <p className="text-gray-300">
+              Olvídate de las llamadas y largas esperas. Reserva tu turno con un
+              par de clics.
+            </p>
+          </div>
+
+          <div className="bg-gray-800/60 backdrop-blur-sm p-6 rounded-lg text-center">
+            <div className="bg-blue-600/30 w-12 h-12 mx-auto rounded-full flex items-center justify-center mb-4">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-6 w-6 text-blue-300"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            </div>
+            <h3 className="text-xl font-bold text-white mb-2">Cerca de ti</h3>
+            <p className="text-gray-300">
+              Encuentra las mejores barberías en tu zona con nuestro sistema de
+              ubicación.
+            </p>
+          </div>
+
+          <div className="bg-gray-800/60 backdrop-blur-sm p-6 rounded-lg text-center">
+            <div className="bg-blue-600/30 w-12 h-12 mx-auto rounded-full flex items-center justify-center mb-4">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-6 w-6 text-blue-300"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+              >
+                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+              </svg>
+            </div>
+            <h3 className="text-xl font-bold text-white mb-2">
+              Servicios de calidad
+            </h3>
+            <p className="text-gray-300">
+              Explora reseñas, calificaciones y elige entre los mejores
+              profesionales.
+            </p>
+          </div>
+        </div>
+
         {/* Footer minimalista */}
-        <footer className="mt-16 text-center text-gray-500 text-sm">
+        <footer className="mt-20 text-center text-gray-500 text-sm">
           <p>© 2025 Barbería System. Todos los derechos reservados.</p>
           <div className="flex justify-center space-x-6 mt-3">
-            <a href="#" className="hover:text-white transition-colors">Instagram</a>
-            <a href="#" className="hover:text-white transition-colors">Facebook</a>
-            <a href="#" className="hover:text-white transition-colors">Twitter</a>
-            <a href="#" className="hover:text-white transition-colors">Contacto</a>
+            <a href="#" className="hover:text-white transition-colors">
+              Instagram
+            </a>
+            <a href="#" className="hover:text-white transition-colors">
+              Facebook
+            </a>
+            <a href="#" className="hover:text-white transition-colors">
+              Twitter
+            </a>
+            <a href="#" className="hover:text-white transition-colors">
+              Contacto
+            </a>
           </div>
         </footer>
       </div>
-
-      {/* Modal para el formulario de reserva - Versión Mejorada con Scroll */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto">
-          {/* Overlay con efecto de blur */}
-          <div 
-            className="fixed inset-0 bg-black/70 backdrop-blur-sm transition-opacity"
-            onClick={handleCloseModal}
-          ></div>
-          
-          {/* Contenedor del modal con altura máxima y scroll interno */}
-          <div 
-            className="relative bg-gray-800 rounded-lg border border-gray-700 max-w-3xl w-full mx-4 my-4 md:mx-auto z-50 overflow-hidden transform transition-all animate-modal-open shadow-xl max-h-[90vh] flex flex-col"
-          >
-            {/* Botón para cerrar */}
-            <button 
-              onClick={handleCloseModal}
-              className="absolute top-4 right-4 text-gray-400 hover:text-white z-10"
-              aria-label="Cerrar"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-            
-            {/* Header del modal fijo */}
-            <div className="p-6 pb-0 flex-shrink-0">
-              <h2 className="text-2xl font-bold text-white">
-                Reserva tu cita
-              </h2>
-              <p className="text-gray-400 text-sm mt-1">
-                Completa el formulario para asegurar tu horario
-              </p>
-            </div>
-            
-            {/* Contenido del modal con scroll */}
-            <div className="p-6 overflow-y-auto">
-              <AppointmentForm 
-                preselectedService={selectedService} 
-                preselectedBarber={selectedBarber}
-                onComplete={handleCloseModal}
-              />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Estilos para la animación del modal */}
-      <style jsx global>{`
-        @keyframes modalOpen {
-          from {
-            opacity: 0;
-            transform: translateY(20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        
-        .animate-modal-open {
-          animation: modalOpen 0.3s ease-out forwards;
-        }
-        
-        /* Estilos para optimizar el scroll en el modal */
-        .overflow-y-auto {
-          scrollbar-width: thin;
-          scrollbar-color: rgba(75, 85, 99, 0.5) rgba(31, 41, 55, 0.1);
-        }
-        
-        .overflow-y-auto::-webkit-scrollbar {
-          width: 6px;
-        }
-        
-        .overflow-y-auto::-webkit-scrollbar-track {
-          background: rgba(31, 41, 55, 0.1);
-          border-radius: 3px;
-        }
-        
-        .overflow-y-auto::-webkit-scrollbar-thumb {
-          background-color: rgba(75, 85, 99, 0.5);
-          border-radius: 3px;
-        }
-      `}</style>
     </main>
   );
 }

@@ -2,16 +2,16 @@
   "name": "my-app",
   "version": "0.1.0",
   "private": true,
-"scripts": {
-  "dev": "next dev",
-  "build": "next build",
-  "start": "next start",
-  "lint": "next lint",
-  "seed": "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts",
-   "list": "bash -c 'find . -type d \\( -name \"node_modules\" -o -name \".next\" \\) -prune -o -print'",
-   "extract-code": "ts-node scripts/extract-code.ts"
-}
-,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "seed": "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts",
+    "list": "bash -c 'find . -type d \\( -name \"node_modules\" -o -name \".next\" \\) -prune -o -print'",
+    "extract-code": "ts-node scripts/extract-code.ts",
+    "reset-admin": "node --loader ts-node/esm scripts/reset-admin.js"
+  },
   "prisma": {
     "seed": "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
   },
